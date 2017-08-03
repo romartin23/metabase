@@ -3792,4 +3792,19 @@ databaseChangeLog:
                   remarks: 'The version of the fingerprint for this Field. Used so we can keep track of which Fields need to be analyzed again when new things are added to fingerprints.'
                   defaultValue: 0
                   constraints:
-                    nullable: false
+  - changeSet:
+      id: 62
+      author: senior
+      comment: 'Added 0.26.0'
+      changes:
+        - addColumn:
+            tableName: metabase_database
+            columns:
+              - column:
+                  name: timezone
+                  type: VARCHAR(254)
+                  remarks: 'Timezone identifier for the database, set by the sync process'
+              - column:
+                  name: overridden_timezone
+                  type: VARCHAR(254)
+                  remarks: 'Timezone identifier, user specified, takes precedence over timezone'

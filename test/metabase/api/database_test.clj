@@ -61,8 +61,9 @@
    :caveats                     nil
    :points_of_interest          nil
    :cache_field_values_schedule "0 50 0 * * ? *"
-   :metadata_sync_schedule      "0 50 * * * ? *"})
-
+   :metadata_sync_schedule      "0 50 * * * ? *"
+   :timezone                    nil
+   :overridden_timezone         nil})
 
 (defn- db-details
   "Return default column values for a database (either the test database, via `(db)`, or optionally passed in)."
@@ -75,6 +76,7 @@
              :id         $
              :details    $
              :updated_at $
+             :timezone   $
              :features   (map name (driver/features (driver/engine->driver (:engine db))))}))))
 
 

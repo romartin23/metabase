@@ -52,7 +52,9 @@
      :points_of_interest          nil
      :features                    (mapv name (driver/features (driver/engine->driver :h2)))
      :cache_field_values_schedule "0 50 0 * * ? *"
-     :metadata_sync_schedule      "0 50 * * * ? *"}))
+     :metadata_sync_schedule      "0 50 * * * ? *"
+     :timezone                    $
+     :overridden_timezone         nil}))
 
 (defn- table-defaults []
   {:description             nil
