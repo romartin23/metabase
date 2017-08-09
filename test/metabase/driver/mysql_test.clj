@@ -29,7 +29,7 @@
 
 ;; make sure connection details w/ extra params work as expected
 (expect
-  "//localhost:3306/cool?zeroDateTimeBehavior=convertToNull&useUnicode=true&characterEncoding=UTF8&characterSetResults=UTF8&useSSL=false&tinyInt1isBit=false"
+  "//localhost:3306/cool?zeroDateTimeBehavior=convertToNull&useUnicode=true&characterEncoding=UTF8&characterSetResults=UTF8&useLegacyDatetimeCode=true&useJDBCCompliantTimezoneShift=true&useSSL=false&tinyInt1isBit=false"
   (:subname (sql/connection-details->spec (MySQLDriver.) {:host               "localhost"
                                                           :port               "3306"
                                                           :dbname             "cool"

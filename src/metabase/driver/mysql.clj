@@ -51,10 +51,12 @@
 (def ^:private ^:const default-connection-args
   "Map of args for the MySQL JDBC connection string.
    Full list of is options is available here: http://dev.mysql.com/doc/connector-j/6.0/en/connector-j-reference-configuration-properties.html"
-  {:zeroDateTimeBehavior :convertToNull ; 0000-00-00 dates are valid in MySQL; convert these to `null` when they come back because they're illegal in Java
-   :useUnicode           :true          ; Force UTF-8 encoding of results
-   :characterEncoding    :UTF8
-   :characterSetResults  :UTF8})
+  {:zeroDateTimeBehavior          :convertToNull ; 0000-00-00 dates are valid in MySQL; convert these to `null` when they come back because they're illegal in Java
+   :useUnicode                    :true          ; Force UTF-8 encoding of results
+   :characterEncoding             :UTF8
+   :characterSetResults           :UTF8
+   :useLegacyDatetimeCode         :true          ; Needs to be true to set useJDBCCompliantTimezoneShift to true
+   :useJDBCCompliantTimezoneShift :true})        ; This allows us to adjust the timezone of timestamps as we pull them from the resultset
 
 (def ^:private ^:const ^String default-connection-args-string
   (s/join \& (for [[k v] default-connection-args]

@@ -17,7 +17,8 @@
              [util :as qputil]]
             [metabase.util.honeysql-extensions :as hx])
   (:import clojure.lang.Keyword
-           java.sql.SQLException
+           [java.sql ResultSet ResultSetMetaData SQLException]
+           [java.util Calendar TimeZone]
            [metabase.query_processor.interface AgFieldRef BinnedField DateTimeField DateTimeValue Expression ExpressionRef Field FieldLiteral RelativeDateTimeValue Value]))
 
 (def ^:dynamic *query*
@@ -347,12 +348,48 @@
       {:query  sql
        :params args})))
 
+(defn- get-date [^TimeZone tz]
+  (fn [^ResultSet rs ^ResultSetMetaData rsmeta ^Integer i]
+    (.getDate rs i (Calendar/getInstance tz))))
+
+(defn- get-timestamp [^TimeZone tz]
+  (fn [^ResultSet rs ^ResultSetMetaData rsmeta ^Integer i]
+    (.getTimestamp rs i (Calendar/getInstance tz))))
+
+(defn- get-object [^ResultSet rs _ ^Integer i]
+  (.getObject rs i))
+
+(defn- make-column-reader
+  "Given `COLUMN-TYPE` and `TZ_STR`, return a function for reading
+  that type of column from a ResultSet"
+  [^Integer column-type ^String tz-str]
+  (let [tz (some-> tz-str TimeZone/getTimeZone)]
+    (cond
+      (and tz (= column-type java.sql.Types/DATE))
+      (get-date tz)
+
+      (and tz (= column-type java.sql.Types/TIMESTAMP))
+      (get-timestamp tz)
+
+      :else
+      get-object)))
+
+(defn- read-columns-with-date-handling
+  "Returns a function that will read a row from `RS`, suitable for
+  being passed into the clojure.java.jdbc/query function"
+  [timezone]
+  (fn [^ResultSet rs ^ResultSetMetaData rsmeta idxs]
+    (let [data-read-functions (map (fn [^Integer i] (make-column-reader (.getColumnType rsmeta i) timezone)) idxs)]
+      (mapv (fn [^Integer i data-read-fn]
+              (jdbc/result-set-read-column (data-read-fn rs rsmeta i) rsmeta i)) idxs data-read-functions))))
+
 (defn- run-query
   "Run the query itself."
-  [{sql :query, params :params, remark :remark} connection]
+  [{sql :query, params :params, remark :remark} database connection]
   (let [sql              (str "-- " remark "\n" (hx/unescape-dots sql))
         statement        (into [sql] params)
-        [columns & rows] (jdbc/query connection statement {:identifiers identity, :as-arrays? true})]
+        [columns & rows] (jdbc/query connection statement {:identifiers identity, :as-arrays? true
+                                                           :read-columns (read-columns-with-date-handling (:timezone database))})]
     {:rows    (or rows [])
      :columns columns}))
 
@@ -383,30 +420,20 @@
   (jdbc/with-db-transaction [transaction-connection connection]
     (do-with-auto-commit-disabled transaction-connection (partial f transaction-connection))))
 
-(defn- set-timezone!
-  "Set the timezone for the current connection."
-  [driver settings connection]
-  (let [timezone      (u/prog1 (:report-timezone settings)
-                        (assert (re-matches #"[A-Za-z\/_]+" <>)))
-        format-string (sql/set-timezone-sql driver)
-        sql           (format format-string (str \' timezone \'))]
-    (log/debug (u/format-color 'green "Setting timezone with statement: %s" sql))
-    (jdbc/db-do-prepared connection [sql])))
+(defn- run-query-without-timezone [driver settings database connection query]
+  (do-in-transaction connection (partial run-query query database)))
 
-(defn- run-query-without-timezone [driver settings connection query]
-  (do-in-transaction connection (partial run-query query)))
-
-(defn- run-query-with-timezone [driver settings connection query]
+(defn- run-query-with-timezone [driver settings database connection query]
   (try
     (do-in-transaction connection (fn [transaction-connection]
                                     (set-timezone! driver settings transaction-connection)
-                                    (run-query query transaction-connection)))
+                                    (run-query query database transaction-connection)))
     (catch SQLException e
       (log/error "Failed to set timezone:\n" (with-out-str (jdbc/print-sql-exception-chain e)))
-      (run-query-without-timezone driver settings connection query))
+      (run-query-without-timezone driver settings database connection query))
     (catch Throwable e
       (log/error "Failed to set timezone:\n" (.getMessage e))
-      (run-query-without-timezone driver settings connection query))))
+      (run-query-without-timezone driver settings database connection query))))
 
 
 (defn execute-query
@@ -418,4 +445,4 @@
         (let [db-connection (sql/db->jdbc-connection-spec database)]
           ((if (seq (:report-timezone settings))
              run-query-with-timezone
-             run-query-without-timezone) driver settings db-connection query))))))
+             run-query-without-timezone) driver settings database db-connection query))))))

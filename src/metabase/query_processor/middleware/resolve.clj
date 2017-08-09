@@ -342,7 +342,7 @@
   "Wraps the `resolve` function in a query-processor middleware"
   [qp]
   (fn [{database-id :database, :as query}]
-    (let [resolved-db (db/select-one [Database :name :id :engine :details], :id database-id)
+    (let [resolved-db (db/select-one [Database :name :id :engine :details :timezone], :id database-id)
           query       (if (qputil/mbql-query? query)
                         (resolve query)
                         query)]
