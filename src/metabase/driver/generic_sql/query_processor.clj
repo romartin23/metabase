@@ -423,19 +423,6 @@
 (defn- run-query-without-timezone [driver settings database connection query]
   (do-in-transaction connection (partial run-query query database)))
 
-(defn- run-query-with-timezone [driver settings database connection query]
-  (try
-    (do-in-transaction connection (fn [transaction-connection]
-                                    (set-timezone! driver settings transaction-connection)
-                                    (run-query query database transaction-connection)))
-    (catch SQLException e
-      (log/error "Failed to set timezone:\n" (with-out-str (jdbc/print-sql-exception-chain e)))
-      (run-query-without-timezone driver settings database connection query))
-    (catch Throwable e
-      (log/error "Failed to set timezone:\n" (.getMessage e))
-      (run-query-without-timezone driver settings database connection query))))
-
-
 (defn execute-query
   "Process and run a native (raw SQL) QUERY."
   [driver {:keys [database settings], query :native, :as outer-query}]
@@ -443,6 +430,4 @@
     (do-with-try-catch
       (fn []
         (let [db-connection (sql/db->jdbc-connection-spec database)]
-          ((if (seq (:report-timezone settings))
-             run-query-with-timezone
-             run-query-without-timezone) driver settings database db-connection query))))))
+          (run-query-without-timezone driver settings database db-connection query))))))

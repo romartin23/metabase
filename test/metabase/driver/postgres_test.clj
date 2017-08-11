@@ -238,39 +238,3 @@
         (sync!)
         ;; now take a look at the Tables in the database related to the view. THERE SHOULD BE ONLY ONE!
         (map (partial into {}) (db/select [Table :name :active] :db_id (u/get-id database), :name "angry_birds"))))))
-
-
-;;; timezone tests
-
-(tu/resolve-private-vars metabase.driver.generic-sql.query-processor
-  run-query-with-timezone)
-
-(defn- get-timezone-with-report-timezone [report-timezone]
-  (ffirst (:rows (run-query-with-timezone pg-driver
-                                          {:report-timezone report-timezone}
-                                          (sql/connection-details->spec pg-driver (i/database->connection-details pg-driver :server nil))
-                                          {:query "SELECT current_setting('TIMEZONE') AS timezone;"}))))
-
-;; check that if we set report-timezone to US/Pacific that the session timezone is in fact US/Pacific
-(expect-with-engine :postgres
-  "US/Pacific"
-  (get-timezone-with-report-timezone "US/Pacific"))
-
-;; check that we can set it to something else: America/Chicago
-(expect-with-engine :postgres
-  "America/Chicago"
-  (get-timezone-with-report-timezone "America/Chicago"))
-
-;; ok, check that if we try to put in a fake timezone that the query still reëxecutes without a custom timezone. This should give us the same result as if we didn't try to set a timezone at all
-(expect-with-engine :postgres
-  (get-timezone-with-report-timezone nil)
-  (get-timezone-with-report-timezone "Crunk Burger"))
-
-
-;; make sure connection details w/ extra params work as expected
-(expect
-  "//localhost:5432/cool?prepareThreshold=0"
-  (:subname (sql/connection-details->spec pg-driver {:host               "localhost"
-                                                     :port               "5432"
-                                                     :dbname             "cool"
-                                                     :additional-options "prepareThreshold=0"})))
