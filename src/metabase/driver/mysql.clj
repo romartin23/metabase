@@ -150,6 +150,8 @@
 (defn- string-length-fn [field-key]
   (hsql/call :char_length field-key))
 
+(def ^:private mysql-date-formatter (driver/create-db-time-formatter "yyyy-MM-dd HH:mm:ss.SSSSSS zzz"))
+(def ^:private mysql-db-time-query "select CONCAT(DATE_FORMAT(current_timestamp, '%Y-%m-%d %H:%i:%S.%f' ), ' ', @@system_time_zone)")
 
 (defrecord MySQLDriver []
   clojure.lang.Named
@@ -182,7 +184,8 @@
                                                             {:name         "additional-options"
                                                              :display-name "Additional JDBC connection string options"
                                                              :placeholder  "tinyInt1isBit=false"}]))
-          :humanize-connection-error-message (u/drop-first-arg humanize-connection-error-message)})
+          :humanize-connection-error-message (u/drop-first-arg humanize-connection-error-message)
+          :current-db-time                   (driver/make-current-db-time-fn mysql-date-formatter mysql-db-time-query)})
 
   sql/ISQLDriver
   (merge (sql/ISQLDriverDefaultsMixin)
