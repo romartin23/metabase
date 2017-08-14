@@ -5,7 +5,7 @@
             [metabase.models.table :as table]
             [metabase.test
              [data :as data]
-             [util :refer [resolve-private-vars]]]
+             [util :refer [resolve-private-vars] :as tu]]
             [metabase.test.data.datasets :as datasets]
             [toucan.db :as db])
   (:import metabase.driver.presto.PrestoDriver))
@@ -40,8 +40,7 @@
 (expect
   {:headers {"X-Presto-Source"    "metabase"
              "X-Presto-User"      "user"
-             "X-Presto-Catalog"   "test_data"
-             "X-Presto-Time-Zone" "America/Toronto"}}
+             "X-Presto-Catalog"   "test_data"}}
   (details->request {:user "user", :catalog "test_data", :report-timezone "America/Toronto"}))
 
 (expect
@@ -150,3 +149,7 @@
       (driver/can-connect-with-details? engine details :rethrow-exceptions))
        (catch Exception e
          (.getMessage e))))
+
+(datasets/expect-with-engine :presto
+  "UTC"
+  (tu/db-timezone-id))

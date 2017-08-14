@@ -1,5 +1,6 @@
 (ns metabase.driver.bigquery-test
   (:require [expectations :refer :all]
+            [metabase.driver.bigquery]
             [metabase
              [query-processor :as qp]
              [query-processor-test :as qptest]]
@@ -7,7 +8,8 @@
             [metabase.test
              [data :as data]
              [util :as tu]]
-            [metabase.test.data.datasets :refer [expect-with-engine]]))
+            [metabase.test.data.datasets :refer [expect-with-engine]])
+  (:import [metabase.driver.bigquery BigQueryDriver]))
 
 (def ^:private col-defaults
   {:remapped_to nil, :remapped_from nil})
@@ -91,3 +93,7 @@
                                      (ql/aggregation (ql/sum (ql/field-id (data/id :checkins :user_id)))
                                                      (ql/sum (ql/field-id (data/id :checkins :user_id)))
                                                      (ql/sum (ql/field-id (data/id :checkins :user_id)))))})))
+
+(expect-with-engine :bigquery
+  "UTC"
+  (tu/db-timezone-id))
