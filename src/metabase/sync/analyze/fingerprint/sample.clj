@@ -4,8 +4,7 @@
    rows, but in the future we plan to make this more sophisticated and have different types of samples for different
    Fields, or do a better job getting a more-random sample of rows."
   (:require [medley.core :as m]
-            [metabase.driver :as driver]
-            [metabase.models.database :refer [Database]]
+            [metabase.db.metadata-queries :as metadata-queries]
             [metabase.sync.interface :as i]
             [schema.core :as s]))
 
@@ -14,14 +13,7 @@
    use in the fingerprinting sub-stage of analysis. Returns `nil` if no rows are available."
   [table :- i/TableInstance, fields :- [i/FieldInstance]]
   ;; TODO - we should make `->driver` a method so we can pass things like Fields into it
-  (let [db-id    (:db_id table)
-        driver   (driver/->driver db-id)
-        database (Database db-id)]
-    (driver/sync-in-context driver database
-      (fn []
-        (->> (driver/table-rows-sample driver table fields)
-             (take driver/max-sample-rows)
-             seq)))))
+  (metadata-queries/table-sample table fields))
 
 (s/defn ^:private ^:always-validate table-sample->field-sample :- (s/maybe i/FieldSample)
   "Fetch a sample for the Field whose values are at INDEX in the TABLE-SAMPLE.

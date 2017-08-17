@@ -65,15 +65,22 @@
        (special-type-importance field)
        field-name])))
 
+(def ^:dynamic ^Boolean *enable-automagic-column-sorting*
+  "Should automagic column sorting be allowed? Default is `true`; the ability to enable this is provided for certain
+  situations when we really can't have it happening (e.g. the table sampling query in `metadata-queries`.)"
+  ;; TODO - it would be better if we could somehow just make this an option we pass in with the query.
+  true)
+
 (defn- should-sort? [inner-query]
-  (or
-   ;; if there's no source query then always sort
-   (not (:source-query inner-query))
-   ;; if the source query is MBQL then sort
-   (not (get-in inner-query [:source-query :native]))
-   ;; otherwise only sort queries with *NATIVE* source queries if the query has an aggregation and/or breakout
-   (:aggregation inner-query)
-   (:breakout inner-query)))
+  (when *enable-automagic-column-sorting*
+    (or
+     ;; if there's no source query then always sort
+     (not (:source-query inner-query))
+     ;; if the source query is MBQL then sort
+     (not (get-in inner-query [:source-query :native]))
+     ;; otherwise only sort queries with *NATIVE* source queries if the query has an aggregation and/or breakout
+     (:aggregation inner-query)
+     (:breakout inner-query))))
 
 (defn sort-fields
   "Sort FIELDS by their \"importance\" vectors."

@@ -2,12 +2,16 @@
   "Predefined MBQL queries for getting metadata about an external database."
   (:require [clojure.tools.logging :as log]
             [metabase
+             [driver :as driver]
              [query-processor :as qp]
              [util :as u]]
             [metabase.models
              [field-values :as field-values]
              [table :refer [Table]]]
             [metabase.query-processor.middleware.expand :as ql]
+            [metabase.query-processor.sort :as sort]
+            [metabase.sync.interface :as si]
+            [schema.core :as s]
             [toucan.db :as db]))
 
 (defn- qp-query [db-id query]
@@ -18,6 +22,17 @@
         :query    query})
       :data
       :rows))
+
+(s/defn ^:always-validate table-sample :- (s/maybe si/TableSample)
+  "Return a sample of rows in TABLE via an MBQL query. Only Fields in FIELDS will be returned in each row."
+  [table :- si/TableInstance, fields :- [si/FieldInstance]]
+  (binding [sort/*enable-automagic-column-sorting* false]
+    (qp-query (:db_id table)
+              {:source-table (u/get-id table)
+               :fields       (vec (for [field fields]
+                                    [:field-id (u/get-id field)]))
+               :limit        driver/max-sample-rows})))
+
 
 (defn- field-query [{table-id :table_id} query]
   {:pre [(integer? table-id)]}
