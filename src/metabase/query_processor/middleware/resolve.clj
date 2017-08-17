@@ -1,7 +1,8 @@
 (ns metabase.query-processor.middleware.resolve
   "Resolve references to `Fields`, `Tables`, and `Databases` in an expanded query dictionary."
   (:refer-clojure :exclude [resolve])
-  (:require [clojure
+  (:require [clj-time.coerce :as tcoerce]
+            [clojure
              [set :as set]
              [walk :as walk]]
             [medley.core :as m]
@@ -9,15 +10,17 @@
              [db :as mdb]
              [util :as u]]
             [metabase.models
+             [database :refer [Database]]
              [field :as field]
-             [table :refer [Table]]
-             [database :refer [Database]]]
+             [setting :as setting]
+             [table :refer [Table]]]
             [metabase.query-processor
              [interface :as i]
              [util :as qputil]]
             [schema.core :as s]
-            [toucan.db :as db]
-            [toucan.hydrate :refer [hydrate]])
+            [toucan
+             [db :as db]
+             [hydrate :refer [hydrate]]])
   (:import [metabase.query_processor.interface DateTimeField DateTimeValue ExpressionRef Field FieldPlaceholder RelativeDatetime RelativeDateTimeValue Value ValuePlaceholder]))
 
 ;; # ---------------------------------------------------------------------- UTIL FNS ------------------------------------------------------------
@@ -187,7 +190,7 @@
 
 (defprotocol ^:private IParseValueForField
   (^:private parse-value [this value]
-    "Parse a value for a given type of `Field`."))
+   "Parse a value for a given type of `Field`."))
 
 (extend-protocol IParseValueForField
   Field
@@ -200,19 +203,24 @@
 
   DateTimeField
   (parse-value [this value]
-    (cond
-      (u/date-string? value)
-      (s/validate DateTimeValue (i/map->DateTimeValue {:field this, :value (u/->Timestamp value)}))
+    (let [tz                 (when-let [tz-id ^String (setting/get :report-timezone)]
+                               (java.util.TimeZone/getTimeZone tz-id))
+          parsed-string-date (some-> (u/str->date-time value tz)
+                                     tcoerce/to-long
+                                     java.sql.Timestamp.)]
+      (cond
+        parsed-string-date
+        (s/validate DateTimeValue (i/map->DateTimeValue {:field this, :value parsed-string-date}))
 
-      (instance? RelativeDatetime value)
-      (do (s/validate RelativeDatetime value)
-          (s/validate RelativeDateTimeValue (i/map->RelativeDateTimeValue {:field this, :amount (:amount value), :unit (:unit value)})))
+        (instance? RelativeDatetime value)
+        (do (s/validate RelativeDatetime value)
+            (s/validate RelativeDateTimeValue (i/map->RelativeDateTimeValue {:field this, :amount (:amount value), :unit (:unit value)})))
 
-      (nil? value)
-      nil
+        (nil? value)
+        nil
 
-      :else
-      (throw (Exception. (format "Invalid value '%s': expected a DateTime." value))))))
+        :else
+        (throw (Exception. (format "Invalid value '%s': expected a DateTime." value)))))))
 
 (defn- value-ph-resolve-field [{:keys [field-placeholder value]} field-id->field]
   (let [resolved-field (resolve-field field-placeholder field-id->field)]
