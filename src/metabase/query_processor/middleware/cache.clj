@@ -12,6 +12,7 @@
    `MB_QP_CACHE_BACKEND`.
 
     Refer to `metabase.query-processor.middleware.cache-backend.interface` for more details about how the cache backends themselves."
+  (:import [com.stratio.metabase.executionfactory QueryExecutionFactory])
   (:require [clojure.tools.logging :as log]
             [metabase.config :as config]
             [metabase.public-settings :as public-settings]
@@ -67,12 +68,15 @@
 ;;; ------------------------------------------------------------ Cache Operations ------------------------------------------------------------
 
 (defn- cached-results [query-hash max-age-seconds]
-  (when-not *ignore-cached-results*
-    (when-let [results (i/cached-results @backend-instance query-hash max-age-seconds)]
-      (assert (u/is-temporal? (:updated_at results))
-        "cached-results should include an `:updated_at` field containing the date when the query was last ran.")
-      (log/info "Returning cached results for query" (u/emoji "💾"))
-      (assoc results :cached true))))
+  (when-not false
+      (when-let [results (i/cached-results @backend-instance query-hash max-age-seconds)]
+         (assert (u/is-temporal? (:updated_at results))
+          "cached-results should include an `:updated_at` field containing the date when the query was last ran.")
+         (log/info "Returning cached results for query" (u/emoji "💾"))
+         (assoc results :cached true))))
+
+
+
 
 (defn- save-results!  [query-hash results]
   (log/info "Caching results for next time for query" (u/emoji "💾"))
@@ -82,7 +86,7 @@
 ;;; ------------------------------------------------------------ Middleware ------------------------------------------------------------
 
 (defn- is-cacheable? ^Boolean [{cache-ttl :cache_ttl}]
-  (boolean (and (public-settings/enable-query-caching)
+   (boolean (and (public-settings/enable-query-caching)
                 cache-ttl)))
 
 (defn- results-are-below-max-byte-threshold?
@@ -119,8 +123,26 @@
 
 (defn- run-query-with-cache [qp {cache-ttl :cache_ttl, :as query}]
   (let [query-hash (qputil/query-hash query)]
-    (or (cached-results query-hash cache-ttl)
-        (run-query-and-save-results-if-successful! query-hash qp query))))
+    (QueryExecutionFactory/executeSequentialQuery  query-hash)
+    (try
+      (let [query_result (or
+                           (cached-results query-hash cache-ttl)
+                           (run-query-and-save-results-if-successful! query-hash qp query))]
+            (QueryExecutionFactory/queryExecuted query-hash)
+            query_result)
+      (catch Throwable e
+        (QueryExecutionFactory/queryExecuted query-hash)
+        (throw e)))))
+    "(try
+
+         (QueryExecutionFactory/executeSequentialQuery  query-hash)"
+
+            " (let [query-result (run-query-and-save-results-if-successful! query-hash qp query)]
+              (QueryExecutionFactory/queryExecuted query-hash)
+              query-result)))
+      (catch Throwable e
+        (QueryExecutionFactory/queryExecuted query-hash)
+        (throw e)))))"
 
 
 (defn maybe-return-cached-results
@@ -144,3 +166,9 @@
     (if-not (is-cacheable? query)
       (qp query)
       (run-query-with-cache qp query))))
+
+
+"romartin-- para poder cachear desde la primera vez..."
+(defn- first-query-and-save-results-if-successful! [qp query]
+  (let [query-hash (qputil/query-hash query)]
+    (run-query-and-save-results-if-successful! query-hash qp query)))

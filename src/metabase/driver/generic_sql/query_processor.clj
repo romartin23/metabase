@@ -62,6 +62,15 @@
   (formatted [this]
     "Return an appropriate HoneySQL form for an object."))
 
+
+(defn display_name
+  "Return the pieces that represent a path to FIELD, of the form `[table-name parent-fields-name* field-name]`."
+  [{display :field-name, {display2 :field-name} :field} ]
+  (if (string? display)
+    (str display)
+    (str display2)))
+
+
 (extend-protocol IGenericSQLFormattable
   nil                    (formatted [_] nil)
   Number                 (formatted [this] this)
@@ -79,9 +88,10 @@
     ;; Unfortunately you can't just refer to the expression by name in other clauses like filter, but have to use the original formuala.
     (formatted (expression-with-name expression-name)))
 
+  ;; TODO add schema-name
   Field
   (formatted [{:keys [schema-name table-name special-type field-name]}]
-    (let [field (keyword (hx/qualify-and-escape-dots schema-name table-name field-name))]
+    (let [field (keyword (hx/qualify-and-escape-dots table-name field-name))]
       (cond
         (isa? special-type :type/UNIXTimestampSeconds)      (sql/unix-timestamp->timestamp (driver) field :seconds)
         (isa? special-type :type/UNIXTimestampMilliseconds) (sql/unix-timestamp->timestamp (driver) field :milliseconds)
@@ -218,13 +228,15 @@
   [_ honeysql-form {clause :filter}]
   (h/where honeysql-form (filter-clause->predicate clause)))
 
+
+;; TODO add schema-source-schema [:= (hx/qualify-and-escape-dots source-schema source-table-name (:field-name source-field))
 (defn apply-join-tables
   "Apply expanded query `join-tables` clause to HONEYSQL-FORM. Default implementation of `apply-join-tables` for SQL drivers."
   [_ honeysql-form {join-tables :join-tables, {source-table-name :name, source-schema :schema} :source-table}]
   (loop [honeysql-form honeysql-form, [{:keys [table-name pk-field source-field schema join-alias]} & more] join-tables]
     (let [honeysql-form (h/merge-left-join honeysql-form
                           [(hx/qualify-and-escape-dots schema table-name) (keyword join-alias)]
-                          [:= (hx/qualify-and-escape-dots source-schema source-table-name (:field-name source-field))
+                          [:= (hx/qualify-and-escape-dots source-table-name (:field-name source-field))
                               (hx/qualify-and-escape-dots join-alias                      (:field-name pk-field))])]
       (if (seq more)
         (recur honeysql-form more)
@@ -304,8 +316,19 @@
 (defn- run-query
   "Run the query itself."
   [{sql :query, params :params, remark :remark} connection]
-  (let [sql              (str "-- " remark "\n" (hx/unescape-dots sql))
-        statement        (into [sql] params)
+  (let [sql (str "-- " remark "\n" (hx/unescape-dots sql))
+        ;;(let [sql (hx/unescape-dots sql)
+          statement (into [sql] params)
+          [columns & rows] (jdbc/query connection statement {:identifiers identity, :as-arrays? true})]
+          {:rows    (or rows [])
+           :columns columns}))
+
+(defn run-query-with-out-remark
+  "Run the query itself."
+  [{sql :query, params :params, remark :remark} connection]
+  (let [sql (str (hx/unescape-dots sql))
+        ;;(let [sql (hx/unescape-dots sql)
+        statement (into [sql] params)
         [columns & rows] (jdbc/query connection statement {:identifiers identity, :as-arrays? true})]
     {:rows    (or rows [])
      :columns columns}))
@@ -316,7 +339,7 @@
            second)             ; so just return the part of the exception that is relevant
       (.getMessage e)))
 
-(defn- do-with-try-catch {:style/indent 0} [f]
+(defn do-with-try-catch {:style/indent 0} [f]
   (try (f)
        (catch java.sql.SQLException e
          (log/error (jdbc/print-sql-exception-chain e))
@@ -333,7 +356,7 @@
   (try (f)
        (finally (.rollback (jdbc/get-connection conn)))))
 
-(defn- do-in-transaction [connection f]
+(defn do-in-transaction [connection f]
   (jdbc/with-db-transaction [transaction-connection connection]
     (do-with-auto-commit-disabled transaction-connection (partial f transaction-connection))))
 
@@ -345,10 +368,10 @@
     (log/debug (u/pprint-to-str 'green [sql timezone]))
     (jdbc/db-do-prepared connection [sql timezone])))
 
-(defn- run-query-without-timezone [driver settings connection query]
+(defn run-query-without-timezone [driver settings connection query]
   (do-in-transaction connection (partial run-query query)))
 
-(defn- run-query-with-timezone [driver settings connection query]
+(defn run-query-with-timezone [driver settings connection query]
   (try
     (do-in-transaction connection (fn [transaction-connection]
                                     (set-timezone! driver settings transaction-connection)

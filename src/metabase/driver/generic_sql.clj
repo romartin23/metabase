@@ -38,13 +38,13 @@
   ;; in QUERY, and should return an appropriately modified version of KORMA-QUERY. Most drivers can use the default implementations for all of these methods,
   ;; but some may need to override one or more (e.g. SQL Server needs to override the behavior of `apply-limit`, since T-SQL uses `TOP` instead of `LIMIT`).
   (apply-aggregation [this honeysql-form, ^Map query] "*OPTIONAL*.")
-  (apply-breakout    [this honeysql-form, ^Map query] "*OPTIONAL*.")
-  (apply-fields      [this honeysql-form, ^Map query] "*OPTIONAL*.")
-  (apply-filter      [this honeysql-form, ^Map query] "*OPTIONAL*.")
+  (apply-breakout [this honeysql-form, ^Map query] "*OPTIONAL*.")
+  (apply-fields [this honeysql-form, ^Map query] "*OPTIONAL*.")
+  (apply-filter [this honeysql-form, ^Map query] "*OPTIONAL*.")
   (apply-join-tables [this honeysql-form, ^Map query] "*OPTIONAL*.")
-  (apply-limit       [this honeysql-form, ^Map query] "*OPTIONAL*.")
-  (apply-order-by    [this honeysql-form, ^Map query] "*OPTIONAL*.")
-  (apply-page        [this honeysql-form, ^Map query] "*OPTIONAL*.")
+  (apply-limit [this honeysql-form, ^Map query] "*OPTIONAL*.")
+  (apply-order-by [this honeysql-form, ^Map query] "*OPTIONAL*.")
+  (apply-page [this honeysql-form, ^Map query] "*OPTIONAL*.")
 
   (column->base-type ^clojure.lang.Keyword [this, ^Keyword column-type]
     "Given a native DB column type, return the corresponding `Field` `base-type`.")
@@ -140,11 +140,11 @@
   (log/debug (u/format-color 'magenta "Creating new connection pool for database %d ..." id))
   (let [spec (connection-details->spec (driver/engine->driver engine) details)]
     (db/connection-pool (assoc spec
-                          :minimum-pool-size           1
+                          :minimum-pool-size 1
                           ;; prevent broken connections closed by dbs by testing them every 3 mins
                           :idle-connection-test-period (* 3 60)
                           ;; prevent overly large pools by condensing them when connections are idle for 15m+
-                          :excess-timeout              (* 15 60)))))
+                          :excess-timeout (* 15 60)))))
 
 (defn- notify-database-updated
   "We are being informed that a DATABASE has been updated, so lets shut down the connection pool (if it exists) under
@@ -166,7 +166,7 @@
     (get @database-id->connection-pool id)
     ;; create a new pool and add it to our cache, then return it
     (u/prog1 (create-connection-pool database)
-      (swap! database-id->connection-pool assoc id <>))))
+             (swap! database-id->connection-pool assoc id <>))))
 
 (defn db->jdbc-connection-spec
   "Return a JDBC connection spec for DATABASE. This will have a C3P0 pool as its datasource."
@@ -202,7 +202,7 @@
       (loop [[[pattern base-type] & more] pattern->type]
         (cond
           (re-find pattern column-type) base-type
-          (seq more)                    (recur more))))))
+          (seq more) (recur more))))))
 
 
 (defn honeysql-form->sql+args
@@ -211,16 +211,21 @@
   {:pre [(map? honeysql-form)]}
   (let [[sql & args] (try (binding [hformat/*subquery?* false]
                             (hsql/format honeysql-form
-                              :quoting             (quote-style driver)
-                              :allow-dashed-names? true))
+                                         :quoting (quote-style driver)
+                                         :allow-dashed-names? true))
                           (catch Throwable e
                             (log/error (u/format-color 'red "Invalid HoneySQL form:\n%s" (u/pprint-to-str honeysql-form)))
                             (throw e)))]
     (into [(hx/unescape-dots sql)] args)))
 
+;;(defn- qualify+escape ^clojure.lang.Keyword
+;;  ([table] (hx/qualify-and-escape-dots (:schema table) (:name table)))
+;;  ([table field] (hx/qualify-and-escape-dots (:schema table) (:name table) (:name field))))
+
+
 (defn- qualify+escape ^clojure.lang.Keyword
-  ([table]       (hx/qualify-and-escape-dots (:schema table) (:name table)))
-  ([table field] (hx/qualify-and-escape-dots (:schema table) (:name table) (:name field))))
+([table] (hx/qualify-and-escape-dots (:schema table) (:name table)))
+  ([table field] (hx/qualify-and-escape-dots (:name table) (:name field))))
 
 
 (defn- query
@@ -234,18 +239,18 @@
 
 
 (defn- field-values-lazy-seq [driver field]
-  (let [table          (field/table field)
-        db             (table/database table)
-        field-k        (qualify+escape table field)
-        pk-field       (field/Field (table/pk-field-id table))
-        pk-field-k     (when pk-field
-                         (qualify+escape table pk-field))
-        transform-fn   (if (isa? (:base_type field) :type/Text)
-                         u/jdbc-clob->str
-                         identity)
-        select*        {:select   [[field-k :field]]
-                        :from     [(qualify+escape table)]          ; if we don't specify an explicit ORDER BY some DBs like Redshift will return them in a (seemingly) random order
-                        :order-by [[(or pk-field-k field-k) :asc]]} ; try to order by the table's Primary Key to avoid doing full table scans
+  (let [table (field/table field)
+        db (table/database table)
+        field-k (qualify+escape table field)
+        pk-field (field/Field (table/pk-field-id table))
+        pk-field-k (when pk-field
+                     (qualify+escape table pk-field))
+        transform-fn (if (isa? (:base_type field) :type/Text)
+                       u/jdbc-clob->str
+                       identity)
+        select* {:select   [[field-k :field]]
+                 :from     [(qualify+escape table)]         ; if we don't specify an explicit ORDER BY some DBs like Redshift will return them in a (seemingly) random order
+                 :order-by [[(or pk-field-k field-k) :asc]]} ; try to order by the table's Primary Key to avoid doing full table scans
         fetch-one-page (fn [page-num]
                          (for [{v :field} (query driver db (apply-page driver select* {:page {:items driver/field-values-lazy-seq-chunk-size
                                                                                               :page  (inc page-num)}}))]
@@ -253,14 +258,14 @@
 
         ;; This function returns a chunked lazy seq that will fetch some range of results, e.g. 0 - 500, then concat that chunk of results
         ;; with a recursive call to (lazily) fetch the next chunk of results, until we run out of results or hit the limit.
-        fetch-page     (fn -fetch-page [page-num]
-                         (lazy-seq
-                          (let [results             (fetch-one-page page-num)
-                                total-items-fetched (* (inc page-num) driver/field-values-lazy-seq-chunk-size)]
-                            (concat results (when (and (seq results)
-                                                       (< total-items-fetched driver/max-sync-lazy-seq-results)
-                                                       (= (count results) driver/field-values-lazy-seq-chunk-size))
-                                              (-fetch-page (inc page-num)))))))]
+        fetch-page (fn -fetch-page [page-num]
+                     (lazy-seq
+                       (let [results (fetch-one-page page-num)
+                             total-items-fetched (* (inc page-num) driver/field-values-lazy-seq-chunk-size)]
+                         (concat results (when (and (seq results)
+                                                    (< total-items-fetched driver/max-sync-lazy-seq-results)
+                                                    (= (count results) driver/field-values-lazy-seq-chunk-size))
+                                           (-fetch-page (inc page-num)))))))]
     (fetch-page 0)))
 
 
@@ -269,7 +274,7 @@
 
 (defn- field-avg-length [driver field]
   (let [table (field/table field)
-        db    (table/database table)]
+        db (table/database table)]
     (or (some-> (query driver db table {:select [[(hsql/call :avg (string-length-fn driver (qualify+escape table field))) :len]]})
                 first
                 :len
@@ -289,30 +294,30 @@
   "Slow implementation of `field-percent-urls` that (probably) requires a full table scan.
    Only use this for DBs where `fast-field-percent-urls` doesn't work correctly, like SQLServer."
   [driver field]
-  (let [table       (field/table field)
-        db          (table/database table)
-        field-k     (qualify+escape table field)
+  (let [table (field/table field)
+        db (table/database table)
+        field-k (qualify+escape table field)
         total-count (:count (first (query driver db table {:select [[:%count.* :count]]
                                                            :where  [:not= field-k nil]})))
-        url-count   (:count (first (query driver db table {:select [[:%count.* :count]]
-                                                           :where  [:like field-k (hx/literal "http%://_%.__%")]})))]
+        url-count (:count (first (query driver db table {:select [[:%count.* :count]]
+                                                         :where  [:like field-k (hx/literal "http%://_%.__%")]})))]
     (url-percentage url-count total-count)))
 
 
 (defn fast-field-percent-urls
   "Fast, default implementation of `field-percent-urls` that avoids a full table scan."
   [driver field]
-  (let [table       (field/table field)
-        db          (table/database table)
-        field-k     (qualify+escape table field)
-        pk-field    (field/Field (table/pk-field-id table))
-        results     (map :is_url (query driver db table (merge {:select [[(hsql/call :like field-k (hx/literal "http%://_%.__%")) :is_url]]
-                                                                :where  [:not= field-k nil]
-                                                                :limit  driver/max-sync-lazy-seq-results}
-                                                               (when pk-field
-                                                                 {:order-by [[(qualify+escape table pk-field) :asc]]}))))
+  (let [table (field/table field)
+        db (table/database table)
+        field-k (qualify+escape table field)
+        pk-field (field/Field (table/pk-field-id table))
+        results (map :is_url (query driver db table (merge {:select [[(hsql/call :like field-k (hx/literal "http%://_%.__%")) :is_url]]
+                                                            :where  [:not= field-k nil]
+                                                            :limit  driver/max-sync-lazy-seq-results}
+                                                           (when pk-field
+                                                             {:order-by [[(qualify+escape table pk-field) :asc]]}))))
         total-count (count results)
-        url-count   (count (filter #(or (true? %) (= % 1)) results))]
+        url-count (count (filter #(or (true? %) (= % 1)) results))]
     (url-percentage url-count total-count)))
 
 
@@ -325,7 +330,7 @@
             :expressions
             :expression-aggregations
             :native-parameters}
-    (set-timezone-sql driver) (conj :set-timezone)))
+          (set-timezone-sql driver) (conj :set-timezone)))
 
 
 ;;; ## Database introspection methods used by sync process
@@ -350,8 +355,8 @@
    This is as much as 15x faster for Databases with lots of system tables than `post-filtered-active-tables` (4 seconds vs 60)."
   [driver, ^DatabaseMetaData metadata]
   (let [all-schemas (set (map :table_schem (jdbc/result-set-seq (.getSchemas metadata))))
-        schemas     (set/difference all-schemas (excluded-schemas driver))]
-    (set (for [schema     schemas
+        schemas (set/difference all-schemas (excluded-schemas driver))]
+    (set (for [schema schemas
                table-name (mapv :table_name (get-tables metadata schema))]
            {:name   table-name
             :schema schema}))))
@@ -376,7 +381,7 @@
                                     :type/*))}
                 (when calculated-special-type
                   (assert (isa? calculated-special-type :type/*)
-                    (str "Invalid type: " calculated-special-type))
+                          (str "Invalid type: " calculated-special-type))
                   {:special-type calculated-special-type})))))
 
 (defn- add-table-pks
@@ -395,32 +400,32 @@
   "Default implementation of `describe-database` for JDBC-based drivers."
   [driver database]
   (with-metadata [metadata driver database]
-    {:tables (active-tables driver, ^DatabaseMetaData metadata)}))
+                 {:tables (active-tables driver, ^DatabaseMetaData metadata)}))
 
 (defn- describe-table [driver database table]
   (with-metadata [metadata driver database]
-    (->> (assoc (select-keys table [:name :schema]) :fields (describe-table-fields metadata driver table))
-         ;; find PKs and mark them
-         (add-table-pks metadata))))
+                 (->> (assoc (select-keys table [:name :schema]) :fields (describe-table-fields metadata driver table))
+                      ;; find PKs and mark them
+                      (add-table-pks metadata))))
 
 (defn- describe-table-fks [driver database table]
   (with-metadata [metadata driver database]
-    (set (for [result (jdbc/result-set-seq (.getImportedKeys metadata nil (:schema table) (:name table)))]
-           {:fk-column-name   (:fkcolumn_name result)
-            :dest-table       {:name   (:pktable_name result)
-                               :schema (:pktable_schem result)}
-            :dest-column-name (:pkcolumn_name result)}))))
+                 (set (for [result (jdbc/result-set-seq (.getImportedKeys metadata nil (:schema table) (:name table)))]
+                        {:fk-column-name   (:fkcolumn_name result)
+                         :dest-table       {:name   (:pktable_name result)
+                                            :schema (:pktable_schem result)}
+                         :dest-column-name (:pkcolumn_name result)}))))
 
 
 (defn analyze-table
   "Default implementation of `analyze-table` for SQL drivers."
   [driver table new-table-ids]
   ((analyze/make-analyze-table driver
-     :field-avg-length-fn   (partial field-avg-length driver)
-     :field-percent-urls-fn (partial field-percent-urls driver))
-   driver
-   table
-   new-table-ids))
+                               :field-avg-length-fn (partial field-avg-length driver)
+                               :field-percent-urls-fn (partial field-percent-urls driver))
+    driver
+    table
+    new-table-ids))
 
 
 (defn ISQLDriverDefaultsMixin
@@ -429,7 +434,7 @@
   (require 'metabase.driver.generic-sql.query-processor)
   {:active-tables        fast-active-tables
    :apply-aggregation    (resolve 'metabase.driver.generic-sql.query-processor/apply-aggregation) ; don't resolve the vars yet so during interactive dev if the
-   :apply-breakout       (resolve 'metabase.driver.generic-sql.query-processor/apply-breakout)    ; underlying impl changes we won't have to reload all the drivers
+   :apply-breakout       (resolve 'metabase.driver.generic-sql.query-processor/apply-breakout) ; underlying impl changes we won't have to reload all the drivers
    :apply-fields         (resolve 'metabase.driver.generic-sql.query-processor/apply-fields)
    :apply-filter         (resolve 'metabase.driver.generic-sql.query-processor/apply-filter)
    :apply-join-tables    (resolve 'metabase.driver.generic-sql.query-processor/apply-join-tables)

@@ -14,7 +14,7 @@
   String  (unprepare-arg [this {:keys [quote-escape]}] (str \' (str/replace this "'" (str quote-escape "'")) \')) ; escape single-quotes
   Boolean (unprepare-arg [this _] (if this "TRUE" "FALSE"))
   Number  (unprepare-arg [this _] (str this))
-  Date    (unprepare-arg [this {:keys [iso-8601-fn]}] (first (hsql/format (hsql/call iso-8601-fn (hx/literal (u/date->iso-8601 this)))))))
+  Date    (unprepare-arg [this {:keys [iso-8601-fn]}] (first (hsql/format (hsql/call (keyword "")  (hx/literal (u/date->iso-8601 this)))))))
 
 (defn unprepare
   "Convert a normal SQL `[statement & prepared-statement-args]` vector into a flat, non-prepared statement."

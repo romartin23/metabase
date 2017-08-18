@@ -14,13 +14,14 @@
             (metabase.models [user :refer [User], :as user]
                              [session :refer [Session]]
                              [setting :refer [defsetting]])
+
             [metabase.public-settings :as public-settings]
             [metabase.util :as u]
             (metabase.util [password :as pass]
                            [schema :as su])))
 
 
-(defn- create-session!
+(defn create-session!
   "Generate a new `Session` for a given `User`. Returns the newly generated session ID."
   [user]
   {:pre  [(map? user) (integer? (:id user)) (contains? user :last_login)]
@@ -40,18 +41,25 @@
 
 (defendpoint POST "/"
   "Login."
-  [:as {{:keys [email password]} :body, remote-address :remote-addr}]
+  [:as {{:keys [email password]} :body, remote-address :remote-addr, headers :headers}]
   {email    su/Email
    password su/NonBlankString}
   (throttle/check (login-throttlers :ip-address) remote-address)
   (throttle/check (login-throttlers :email)      email)
-  (let [user (db/select-one [User :id :password_salt :password :last_login], :email email, :is_active true)]
-    ;; Don't leak whether the account doesn't exist or the password was incorrect
-    (when-not (and user
-                   (pass/verify-password password (:password_salt user) (:password user)))
-      (throw (ex-info "Password did not match stored password." {:status-code 400
-                                                                 :errors      {:password "did not match stored password"}})))
-    {:id (create-session! user)}))
+
+   (let [user_login (get headers (public-settings/user-header))]
+       (if user_login
+         (let [user
+               (db/select-one [User :id :password_salt :password :last_login :first_name], :first_name user_login, :is_active true)]
+           {:id (create-session! user)})
+
+         (let [user (db/select-one [User :id :password_salt :password :last_login :first_name], :email email, :is_active true)]
+          ;; Don't leak whether the account doesn't exist or the password was incorrect
+          (when-not (and user
+                         (pass/verify-password password (:password_salt user) (:password user)))
+            (throw (ex-info "Password did not match stored password." {:status-code 400
+                                                                       :errors      {:password "did not match stored password"}})))
+          {:id (create-session! user)}))))
 
 
 (defendpoint DELETE "/"

@@ -8,6 +8,8 @@
             [metabase.util.password :as password])
   (:import java.util.TimeZone))
 
+
+
 (defsetting check-for-updates
   "Identify when new versions of Metabase are available."
   :type    :boolean
@@ -21,6 +23,22 @@
 (defsetting site-name
   "The name used for this instance of Metabase."
   :default "Metabase")
+
+(defsetting user-header
+            "The header with the user to direct authentication."
+            :default "")
+
+(defsetting init-admin-user
+            "The init admin user created when the instance is initiated"
+            :default "")
+
+(defsetting init-admin-mail
+            "The init admin user mail created when the instance is initiated"
+            :default "")
+
+(defsetting init-admin-password
+            "The init admin user password created when the instance is initiated"
+            :default "")
 
 ;; This value is *guaranteed* to never have a trailing slash :D
 ;; It will also prepend `http://` to the URL if there's not protocol when it comes in

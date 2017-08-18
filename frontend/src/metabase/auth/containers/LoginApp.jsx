@@ -102,6 +102,7 @@ export default class LoginApp extends Component {
         login(credentials, location.query.redirect);
     }
 
+
     render() {
 
         const { loginError } = this.props;
@@ -152,11 +153,14 @@ export default class LoginApp extends Component {
                                 </button>
                                 <Link to={"/auth/forgot_password"+(this.state.credentials.email ? "?email="+this.state.credentials.email : "")} className="Grid-cell py2 sm-py0 text-grey-3 md-text-right text-centered flex-full link" onClick={(e) => { window.OSX ? window.OSX.resetPassword() : null }}>I seem to have forgotten my password</Link>
                             </div>
+
                         </form>
                     </div>
                 </div>
                 <AuthScene />
             </div>
+
+
         );
     }
 }

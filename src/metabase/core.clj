@@ -29,7 +29,8 @@
                       [setup :as setup]
                       [task :as task]
                       [util :as u])
-            [metabase.models.user :refer [User]])
+            [metabase.public-settings :as public-settings]
+            [metabase.models.user :refer [User], :as user])
   (:import org.eclipse.jetty.server.Server))
 
 ;;; CONFIG
@@ -102,6 +103,17 @@
   (mdb/setup-db! :auto-migrate (config/config-bool :mb-db-automigrate))
   (init-status/set-progress! 0.5)
 
+
+  (when (public-settings/init-admin-user)
+    (let [ new-user (db/insert! User
+                :email        (public-settings/init-admin-mail)
+                :first_name   (public-settings/init-admin-user)
+                :last_name    (public-settings/init-admin-user)
+                :password     (str (java.util.UUID/randomUUID))
+                :is_superuser true)]
+          ;; this results in a second db call, but it avoids redundant password code so figure it's worth it
+          (user/set-password! (:id new-user) (public-settings/init-admin-password))))
+
   ;; run a very quick check to see if we are doing a first time installation
   ;; the test we are using is if there is at least 1 User in the database
   (let [new-install? (not (db/exists? User))]
@@ -150,7 +162,9 @@
                                                     :keystore       (config/config-str :mb-jetty-ssl-keystore)
                                                     :key-password   (config/config-str :mb-jetty-ssl-keystore-password)
                                                     :truststore     (config/config-str :mb-jetty-ssl-truststore)
-                                                    :trust-password (config/config-str :mb-jetty-ssl-truststore-password)})
+                                                    :trust-password (config/config-str :mb-jetty-ssl-truststore-password)
+                                                    :client-auth    (keyword (config/config-str :mb-jetty-ssl-client-auth))})
+
           jetty-config     (cond-> (m/filter-vals identity {:port          (config/config-int :mb-jetty-port)
                                                             :host          (config/config-str :mb-jetty-host)
                                                             :max-threads   (config/config-int :mb-jetty-maxthreads)
@@ -160,7 +174,7 @@
                              (config/config-str :mb-jetty-daemon) (assoc :daemon? (config/config-bool :mb-jetty-daemon))
                              (config/config-str :mb-jetty-ssl)    (-> (assoc :ssl? true)
                                                                       (merge jetty-ssl-config)))]
-      (log/info "Launching Embedded Jetty Webserver with config:\n" (with-out-str (pprint/pprint (m/filter-keys #(not (re-matches #".*password.*" (str %)))
+       (log/info "Launching Embedded Jetty Webserver with config:\n" (with-out-str (pprint/pprint (m/filter-keys #(not (re-matches #".*password.*" (str %)))
                                                                                                                 jetty-config))))
       ;; NOTE: we always start jetty w/ join=false so we can start the server first then do init in the background
       (->> (ring-jetty/run-jetty app (assoc jetty-config :join? false))

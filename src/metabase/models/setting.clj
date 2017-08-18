@@ -34,6 +34,7 @@
             [clojure.tools.logging :as log]
             [cheshire.core :as json]
             [environ.core :as env]
+            [metabase.config :as config]
             [medley.core :as m]
             [schema.core :as s]
             (toucan [db :as db]
@@ -85,12 +86,26 @@
 (defonce ^:private cache
   (atom nil))
 
+
+(defonce ^:private lastUpdatedCache
+         (atom 0))
+
+
+(defonce ^:private timeResetCache ^Integer
+         (if (config/config-int :mb-time-reset-cache)
+           (config/config-int :mb-time-reset-cache)
+           60))
+
+
 (defn- restore-cache-if-needed! []
-  (when-not @cache
-    (reset! cache (db/select-field->field :key :value Setting))))
+  (let [currentTime (quot (System/currentTimeMillis) 1000)]
+    (if (> (- currentTime @lastUpdatedCache) timeResetCache)
+      (
+        (reset! cache (db/select-field->field :key :value Setting))
+        (reset! lastUpdatedCache currentTime)
+        (log/info "Restoring cache: Time(" currentTime ")")))))
 
-
-;;; ------------------------------------------------------------ get ------------------------------------------------------------
+  ;;; ------------------------------------------------------------ get ------------------------------------------------------------
 
 (defn- setting-name ^String [setting-or-name]
   (name (:name (resolve-setting setting-or-name))))
@@ -116,6 +131,8 @@
   "Get the value, if any, of SETTING-OR-NAME from the DB (using / restoring the cache as needed)."
   ^String [setting-or-name]
   (restore-cache-if-needed!)
+
+
   (clojure.core/get @cache (setting-name setting-or-name)))
 
 

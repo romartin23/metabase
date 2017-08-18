@@ -277,7 +277,7 @@
 
 (defn find-and-load-drivers!
   "Search Classpath for namespaces that start with `metabase.driver.`, then `require` them and look for the `driver-init`
-   function which provides a uniform way for Driver initialization to be done."
+   functiofind-and-load-drivers!n which provides a uniform way for Driver initialization to be done."
   []
   (doseq [ns-symb @u/metabase-namespace-symbols
           :when   (re-matches #"^metabase\.driver\.[a-z0-9_]+$" (name ns-symb))]

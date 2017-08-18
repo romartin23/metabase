@@ -88,6 +88,7 @@
 ;;; ------------------------------------------------------------ GET /api/database/:id/autocomplete_suggestions ------------------------------------------------------------
 
 (defn- autocomplete-tables [db-id prefix]
+
   (db/select [Table :id :db_id :schema :name]
     {:where    [:and [:= :db_id db-id]
                      [:= :active true]

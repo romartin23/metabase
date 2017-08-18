@@ -226,7 +226,7 @@ export const getRoutes = (store) =>
                     <Route path=":databaseId" component={DatabaseEditApp} />
                 </Route>
 
-                <Route path="datamodel" title="Data Model">
+                <Route path="datamodel" title="Data Governance">
                     <IndexRedirect to="database" />
                     <Route path="database" component={MetadataEditorApp} />
                     <Route path="database/:databaseId" component={MetadataEditorApp} />

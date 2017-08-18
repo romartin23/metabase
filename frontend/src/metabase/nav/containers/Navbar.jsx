@@ -15,6 +15,7 @@ import ProfileLink from "metabase/nav/components/ProfileLink.jsx";
 import * as Urls from "metabase/lib/urls";
 
 import { getPath, getContext, getUser } from "../selectors";
+import RetinaImage from "react-retina-image";
 
 const mapStateToProps = (state, props) => ({
     path:       getPath(state, props),
@@ -76,7 +77,7 @@ export default class Navbar extends Component {
                 <div className="wrapper flex align-center">
                     <div className="NavTitle flex align-center">
                         <Icon name={'gear'} className="AdminGear" size={22}></Icon>
-                        <span className="NavItem-text ml1 hide sm-show text-bold">Metabase Admin Panel</span>
+                        <span className="NavItem-text ml1 hide sm-show text-bold">Admin Panel</span>
                     </div>
 
                     <ul className="sm-ml4 flex flex-full text-strong">
@@ -99,7 +100,12 @@ export default class Navbar extends Component {
                 <ul className="wrapper flex align-center">
                     <li>
                         <Link to="/" data-metabase-event={"Navbar;Logo"} className="NavItem cursor-pointer flex align-center">
-                            <LogoIcon className="text-brand my2"></LogoIcon>
+                            <RetinaImage
+                                    className="mx1"
+                                    src="/app/img/stratio-logo.png"
+                                    width={79}
+                                    forceOriginalDimensions={false /* broken in React v0.13 */}
+                                />
                         </Link>
                     </li>
                 </ul>
@@ -113,7 +119,12 @@ export default class Navbar extends Component {
                 <ul className="ml2 sm-pl4 pr1 flex align-center">
                     <li>
                         <Link to="/" data-metabase-event={"Navbar;Logo"} className="NavItem cursor-pointer text-white flex align-center my1 transition-background p1">
-                            <LogoIcon dark={true}></LogoIcon>
+                            <RetinaImage
+                                    className="mx1"
+                                    src="/app/img/stratio-logo.png"
+                                    width={79}
+                                    forceOriginalDimensions={false /* broken in React v0.13 */}
+                                />
                         </Link>
                     </li>
                     <li className="pl3 hide sm-show">

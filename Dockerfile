@@ -1,4 +1,4 @@
-FROM java:openjdk-7-jre-alpine
+FROM java:openjdk-8-jre-alpine
 
 ENV JAVA_HOME=/usr/lib/jvm/default-jvm
 ENV PATH /usr/local/bin:$PATH
@@ -23,13 +23,44 @@ RUN chmod 744 /usr/local/bin/lein
 # add the application source to the image
 ADD . /app/source
 
+
+RUN mkdir /root/.crossdata/ && \
+    mkdir /root/defaultsecrets/ && \
+    mv /app/source/resources/security/* /root/defaultsecrets/.
+
+
+RUN mkdir /root/kms/ && \
+    mv  /app/source/resources/kms/* /root/kms/.
+
+
+RUN apk add --update curl
+RUN apk add --update openssl
+
+ENV MAVEN_VERSION="3.2.5" \
+    M2_HOME=/usr/lib/mvn
+
+RUN apk add --update wget && \
+  cd /tmp && \
+  wget "http://ftp.unicamp.br/pub/apache/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz" && \
+  tar -zxvf "apache-maven-$MAVEN_VERSION-bin.tar.gz" && \
+  mv "apache-maven-$MAVEN_VERSION" "$M2_HOME" && \
+  ln -s "$M2_HOME/bin/mvn" /usr/bin/mvn
+
+RUN mvn install:install-file -Dfile=/app/source/bin/lib/stratio-crossdata-mesosphere-jdbc4-1.11.0-SNAPSHOT.jar -DgroupId=com.stratio.jdbc -DartifactId=stratio-crossdata-mesosphere-jdbc4 -Dversion=1.11.0-SNAPSHOT -Dpackaging=jar
+RUN mvn install:install-file -Dfile=/app/source/bin/lib/stratio-crossdata-jdbc4-2.1.0-SNAPSHOT.jar -DgroupId=com.stratio.crossdata -DartifactId=stratio-crossdata-jdbc4 -Dversion=2.1.0-SNAPSHOT -Dpackaging=jar
+RUN mvn install:install-file -Dfile=/app/source/bin/lib/local-query-execution-factory-0.2.jar -DgroupId=com.stratio.metabase -DartifactId=local-query-execution-factory -Dversion=0.2 -Dpackaging=jar
+
+
 # build the app
 WORKDIR /app/source
 RUN bin/build
 
+
+
 # remove unnecessary packages & tidy up
 RUN apk del nodejs git wget python make g++
 RUN rm -rf /root/.lein /root/.m2 /root/.node-gyp /root/.npm /root/.yarn /root/.yarn-cache /tmp/* /var/cache/apk/* /app/source/node_modules
+
 
 # expose our default runtime port
 EXPOSE 3000
