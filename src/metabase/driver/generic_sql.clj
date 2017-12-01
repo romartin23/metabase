@@ -357,7 +357,10 @@
   (let [all-schemas (set (map :table_schem (jdbc/result-set-seq (.getSchemas metadata))))
         schemas (set/difference all-schemas (excluded-schemas driver))]
     (set (for [schema schemas
-               table-name (mapv :table_name (get-tables metadata schema))]
+               table-name (mapv :table_name
+                                (try (get-tables metadata schema)
+                                     (catch Throwable t
+                                       (log/error (u/format-color 'red "Unexpected error introspecting schema: %s" schema) t))))]
            {:name   table-name
             :schema schema}))))
 

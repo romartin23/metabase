@@ -33,9 +33,6 @@ RUN mkdir /root/kms/ && \
     mv  /app/source/resources/kms/* /root/kms/.
 
 
-RUN apk add --update curl
-RUN apk add --update openssl
-
 ENV MAVEN_VERSION="3.2.5" \
     M2_HOME=/usr/lib/mvn
 
@@ -49,21 +46,25 @@ RUN apk add --update wget && \
 RUN mvn install:install-file -Dfile=/app/source/bin/lib/stratio-crossdata-mesosphere-jdbc4-1.11.0-SNAPSHOT.jar -DgroupId=com.stratio.jdbc -DartifactId=stratio-crossdata-mesosphere-jdbc4 -Dversion=1.11.0-SNAPSHOT -Dpackaging=jar
 RUN mvn install:install-file -Dfile=/app/source/bin/lib/stratio-crossdata-jdbc4-2.1.0-SNAPSHOT.jar -DgroupId=com.stratio.crossdata -DartifactId=stratio-crossdata-jdbc4 -Dversion=2.1.0-SNAPSHOT -Dpackaging=jar
 RUN mvn install:install-file -Dfile=/app/source/bin/lib/local-query-execution-factory-0.2.jar -DgroupId=com.stratio.metabase -DartifactId=local-query-execution-factory -Dversion=0.2 -Dpackaging=jar
-
-
+RUN mvn install:install-file -Dfile=/app/source/bin/lib/stratio-crossdata-jdbc4-2.6.0.jar -DgroupId=com.stratio.crossdata -DartifactId=stratio-crossdata-jdbc4 -Dversion=2.6.0 -Dpackaging=jar
 # build the app
 WORKDIR /app/source
+
 RUN bin/build
-
-
 
 # remove unnecessary packages & tidy up
 RUN apk del nodejs git wget python make g++
 RUN rm -rf /root/.lein /root/.m2 /root/.node-gyp /root/.npm /root/.yarn /root/.yarn-cache /tmp/* /var/cache/apk/* /app/source/node_modules
 
-
 # expose our default runtime port
 EXPOSE 3000
+
+RUN apk add --update openssl
+RUN apk add --update curl
+
+RUN apk add --update ca-certificates
+RUN mkdir -p /etc/pki/tls/certs && \
+    ln -s /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt
 
 # build and then run it
 WORKDIR /app/source

@@ -24,6 +24,8 @@ export MB_JETTY_SSL_Keystore_Password="$VAR_SSL_Keystore_Password"
 export MB_JETTY_SSL_Truststore="/root/.crossdata/trustStore.jks"
 export MB_JETTY_SSL_Truststore_Password="$VAR_SSL_Truststore_Password"
 
+export HTTP_CLIENT="curl --insecure -f -L -o"
+
 # Heroku Postgres
 if [ "$DATABASE_URL" ]; then
     if [[ $string == *"?"* ]]; then
@@ -94,5 +96,6 @@ if [ ! -z "$RDS_HOSTNAME" ]; then
     export MB_DB_HOST=$RDS_HOSTNAME
     export MB_DB_PORT=$RDS_PORT
 fi
+
 
 exec java -Dfile.encoding=UTF-8 $JAVA_OPTS -jar ./target/uberjar/metabase.jar

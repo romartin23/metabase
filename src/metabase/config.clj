@@ -30,7 +30,8 @@
    :max-session-age "20160"                     ; session length in minutes (14 days)
    :mb-colorize-logs "true"
    :mb-emoji-in-logs "true"
-   :mb-qp-cache-backend "db"})
+   :mb-qp-cache-backend "db"
+   :mb-db-ssl "false"})
 
 
 (defn config-str

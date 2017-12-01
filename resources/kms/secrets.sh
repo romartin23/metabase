@@ -18,7 +18,8 @@ then
 else
 	log "INFO" "using VAULT to download the secrets"
 	# Try logging in using dynamic authentication if vault token not defined.
-    if [ -z "$VAULT_TOKEN" ]; then
+    if [ -z "$VAULT_TOKEN" ];
+    then
         log "INFO" "login using dynamic authentication with role_id: ${VAULT_ROLE_ID}"
         login
         source /root/kms/tls-config.sh
@@ -26,6 +27,15 @@ else
 	    cp /root/kms/secrets/* /root/.crossdata/
         if [ $? != 0 ]; then
             log "ERROR" "login using dynamic authentication failed!"
+            exit 1
+        fi
+    else
+        log "INFO" "login using VAULT TOKEN"
+        source /root/kms/tls-config.sh
+	    source /root/kms/truststore-config.sh
+	    cp /root/kms/secrets/* /root/.crossdata/
+        if [ $? != 0 ]; then
+            log "ERROR" "VAULT TOKEN"
             exit 1
         fi
     fi

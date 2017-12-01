@@ -30,11 +30,17 @@
   "Map of Crossdata column types -> Field base types.
    Add more mappings here as you come across them."
   {
-   :SQL_DECIMAL   :type/Decimal
-   :SQL_INTEGER   :type/Integer         ; PG Log Sequence #
-   :SQL_VARCHAR   :type/Text
-   :TIMESTAMP     :type/DateTime
-   :DATE          :type/DateTime
+   :SQL_DECIMAL             :type/Decimal
+   :SQL_DOUBLE              :type/Decimal
+   :SQL_FLOAT               :type/Float
+   :SQL_INTEGER             :type/Integer
+   :SQL_REAL                :type/Decimal
+   :SQL_VARCHAR             :type/Text
+   :SQL_LONGVARCHAR         :type/Text
+   :SQL_CHAR                :type/Text
+   :TIMESTAMP               :type/DateTime
+   :DATE                    :type/DateTime
+   :SQL_BOOLEAN             :type/Boolean
    (keyword "bit varying")                :type/*
    (keyword "character varying")          :type/Text
    (keyword "double precision")           :type/Float

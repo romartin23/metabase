@@ -92,7 +92,31 @@
                           :port     (config/config-int :mb-db-port)
                           :dbname   (config/config-str :mb-db-dbname)
                           :user     (config/config-str :mb-db-user)
-                          :password (config/config-str :mb-db-pass)}))))
+                          :password (config/config-str :mb-db-pass)
+                          :ssl      (boolean (Boolean/valueOf (config/config-str :mb-db-ssl)))}))))
+
+(def ^:const ssl-params
+  "Params to include in the JDBC connection spec for an SSL connection."
+  {:ssl        true
+   :sslmode    "require"
+   :sslfactory "org.postgresql.ssl.NonValidatingFactory"})  ; HACK Why enable SSL if we disable certificate validation?
+
+(def ^:const disable-ssl-params
+  "Params to include in the JDBC connection spec to disable SSL."
+  {:sslmode "disable"})
+
+(defn- connection-details
+  [{ssl? :ssl, :as details-map}]
+  (-> details-map
+      (update :port (fn [port]
+                      (if (string? port)
+                        (Integer/parseInt port)
+                        port)))
+      ;; remove :ssl in case it's false; DB will still try (& fail) to connect if the key is there
+      (dissoc :ssl)
+      (merge (if ssl?
+               ssl-params
+               disable-ssl-params))))
 
 (defn jdbc-details
   "Takes our own MB details map and formats them properly for connection details for JDBC."
@@ -104,7 +128,8 @@
    (case (:type db-details)
      :h2       (dbspec/h2       db-details)
      :mysql    (dbspec/mysql    (assoc db-details :db (:dbname db-details)))
-     :postgres (dbspec/postgres (assoc db-details :db (:dbname db-details))))))
+     :postgres (dbspec/postgres (connection-details(assoc db-details :db (:dbname db-details)))))))
+
 
 
 ;;; +------------------------------------------------------------------------------------------------------------------------+
@@ -284,10 +309,10 @@
                  (.setInitialPoolSize              3)
                  (.setMinPoolSize                  minimum-pool-size)
                  (.setMaxPoolSize                  15)
-                 (.setIdleConnectionTestPeriod     idle-connection-test-period)
+                 (.setIdleConnectionTestPeriod     120)
                  (.setTestConnectionOnCheckin      false)
                  (.setTestConnectionOnCheckout     false)
-                 (.setPreferredTestQuery           nil)
+                 (.setPreferredTestQuery           "show tables")
                  (.setProperties                   (u/prog1 (Properties.)
                                                      (doseq [[k v] (dissoc spec :classname :subprotocol :subname :naming :delimiters :alias-delimiter
                                                                                 :excess-timeout :minimum-pool-size :idle-connection-test-period)]

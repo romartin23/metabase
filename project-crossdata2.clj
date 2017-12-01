@@ -72,9 +72,8 @@
                  [org.yaml/snakeyaml "1.18"]                          ; YAML parser (required by liquibase)
                  [org.xerial/sqlite-jdbc "3.16.1"]                    ; SQLite driver
                  [postgresql "9.3-1102.jdbc41"]                       ; Postgres driver
-                 [com.stratio.crossdata/stratio-crossdata-jdbc4       "2.6.0"
+                 [com.stratio.crossdata/stratio-crossdata-jdbc4  "2.1.0-SNAPSHOT"
                   :exclusions [org.bouncycastle/bcprov-jdk15on,
-                               org.bouncycastle/crypto,
                                org.bouncycastle/bcpkix-jdk15on]]                       ; Crossdata driver
                  [io.crate/crate-jdbc "2.1.6"]                        ; Crate JDBC driver
                  [prismatic/schema "1.1.5"]                           ; Data schema declaration and validation library
