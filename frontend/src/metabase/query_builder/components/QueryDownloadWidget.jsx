@@ -1,6 +1,9 @@
 import React from "react";
 import PropTypes from "prop-types";
 
+import { parse as urlParse } from "url";
+import querystring from "querystring";
+
 import PopoverWithTrigger from "metabase/components/PopoverWithTrigger.jsx";
 import Icon from "metabase/components/Icon.jsx";
 import DownloadButton from "metabase/components/DownloadButton.jsx";
@@ -13,17 +16,19 @@ import * as Urls from "metabase/lib/urls";
 import _ from "underscore";
 import cx from "classnames";
 
+const EXPORT_FORMATS = ["csv", "xlsx", "json"];
+
 const QueryDownloadWidget = ({ className, card, result, uuid, token }) =>
     <PopoverWithTrigger
         triggerElement={
-            <Tooltip tooltip="Download">
+            <Tooltip tooltip="Download full results">
                 <Icon title="Download this data" name="downarrow" size={16} />
             </Tooltip>
         }
         triggerClasses={cx(className, "text-brand-hover")}
     >
-        <div className="p2" style={{ maxWidth: 300 }}>
-            <h4>Download</h4>
+        <div className="p2" style={{ maxWidth: 320 }}>
+            <h4>Download full results</h4>
             { result.data.rows_truncated != null &&
                 <FieldSet className="my2 text-gold border-gold" legend="Warning">
                     <div className="my1">Your answer has a large number of rows so it could take awhile to download.</div>
@@ -31,9 +36,9 @@ const QueryDownloadWidget = ({ className, card, result, uuid, token }) =>
                 </FieldSet>
             }
             <div className="flex flex-row mt2">
-                {["csv", "json"].map(type =>
+                {EXPORT_FORMATS.map(type =>
                     uuid ?
-                        <PublicQueryButton key={type} type={type} uuid={uuid} className="mr1 text-uppercase text-default" />
+                        <PublicQueryButton key={type} type={type} uuid={uuid} result={result} className="mr1 text-uppercase text-default" />
                     : token ?
                         <EmbedQueryButton key={type} type={type} token={token} className="mr1 text-uppercase text-default" />
                     : card && card.id ?
@@ -50,7 +55,7 @@ const QueryDownloadWidget = ({ className, card, result, uuid, token }) =>
 const UnsavedQueryButton = ({ className, type, result: { json_query }, card }) =>
     <DownloadButton
         className={className}
-        url={`/api/dataset/${type}`}
+        url={`api/dataset/${type}`}
         params={{ query: JSON.stringify(_.omit(json_query, "constraints")) }}
         extensions={[type]}
     >
@@ -60,32 +65,45 @@ const UnsavedQueryButton = ({ className, type, result: { json_query }, card }) =
 const SavedQueryButton = ({ className, type, result: { json_query }, card }) =>
     <DownloadButton
         className={className}
-        url={`/api/card/${card.id}/query/${type}`}
+        url={`api/card/${card.id}/query/${type}`}
         params={{ parameters: JSON.stringify(json_query.parameters) }}
         extensions={[type]}
     >
         {type}
     </DownloadButton>
 
-const PublicQueryButton = ({ className, type, uuid }) =>
+const PublicQueryButton = ({ className, type, uuid, result: { json_query }}) =>
     <DownloadButton
         className={className}
         method="GET"
         url={Urls.publicCard(uuid, type)}
+        params={{ parameters: JSON.stringify(json_query.parameters) }}
         extensions={[type]}
     >
         {type}
     </DownloadButton>
 
-const EmbedQueryButton = ({ className, type, token }) =>
-    <DownloadButton
-        className={className}
-        method="GET"
-        url={Urls.embedCard(token, type)}
-        extensions={[type]}
-    >
-        {type}
-    </DownloadButton>
+
+const EmbedQueryButton = ({ className, type, token }) => {
+    // Parse the query string part of the URL (e.g. the `?key=value` part) into an object. We need to pass them this
+    // way to the `DownloadButton` because it's a form which means we need to insert a hidden `<input>` for each param
+    // we want to pass along. For whatever wacky reason the /api/embed endpoint expect params like ?key=value instead
+    // of like ?params=<json-encoded-params-array> like the other endpoints do.
+    const query  = urlParse(window.location.href).query; // get the part of the URL that looks like key=value
+    const params = query && querystring.parse(query);    // expand them out into a map
+
+    return (
+        <DownloadButton
+            className={className}
+            method="GET"
+            url={Urls.embedCard(token, type)}
+            params={params}
+            extensions={[type]}
+        >
+            {type}
+        </DownloadButton>
+    );
+}
 
 QueryDownloadWidget.propTypes = {
     className: PropTypes.string,

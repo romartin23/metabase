@@ -14,21 +14,34 @@
                              [params :refer [wrap-params]]
                              [session :refer [wrap-session]])
             [medley.core :as m]
-            [toucan.db :as db]
-            [metabase.config :as config]
+            [metabase
+             [config :as config]
+             [db :as mdb]
+             [driver :as driver]
+             [events :as events]
+             [metabot :as metabot]
+             [middleware :as mb-middleware]
+             [plugins :as plugins]
+             [routes :as routes]
+             [sample-data :as sample-data]
+             [setup :as setup]
+             [task :as task]
+             [util :as u]]
             [metabase.core.initialization-status :as init-status]
-            (metabase [db :as mdb]
-                      [driver :as driver]
-                      [events :as events]
-                      [logger :as logger]
-                      [metabot :as metabot]
-                      [middleware :as mb-middleware]
-                      [plugins :as plugins]
-                      [routes :as routes]
-                      [sample-data :as sample-data]
-                      [setup :as setup]
-                      [task :as task]
-                      [util :as u])
+            [metabase.models
+             [user :refer [User]]
+             [setting :as setting]]
+            [metabase.util.i18n :refer [set-locale]]
+            [puppetlabs.i18n.core :refer [trs locale-negotiator]]
+            [ring.adapter.jetty :as ring-jetty]
+            [ring.middleware
+             [cookies :refer [wrap-cookies]]
+             [gzip :refer [wrap-gzip]]
+             [json :refer [wrap-json-body wrap-json-response]]
+             [keyword-params :refer [wrap-keyword-params]]
+             [params :refer [wrap-params]]
+             [session :refer [wrap-session]]]
+            [toucan.db :as db]
             [metabase.public-settings :as public-settings]
             [metabase.models.user :refer [User], :as user])
   (:import org.eclipse.jetty.server.Server))
@@ -37,7 +50,7 @@
 
 (def ^:private app
   "The primary entry point to the Ring HTTP server."
-  (-> routes/routes
+  (-> #'routes/routes                    ; the #' is to allow tests to redefine endpoints
       mb-middleware/log-api-call
       mb-middleware/add-security-headers ; Add HTTP headers to API responses to prevent them from being cached
       (wrap-json-body                    ; extracts json POST body and makes it avaliable on request
@@ -50,6 +63,7 @@
       mb-middleware/wrap-api-key         ; looks for a Metabase API Key on the request and assocs as :metabase-api-key
       mb-middleware/wrap-session-id      ; looks for a Metabase Session ID and assoc as :metabase-session-id
       mb-middleware/maybe-set-site-url   ; set the value of `site-url` if it hasn't been set yet
+      locale-negotiator                  ; Binds *locale* for i18n
       wrap-cookies                       ; Parses cookies in the request map and assocs as :cookies
       wrap-session                       ; reads in current HTTP session and sets :session/key
       wrap-gzip))                        ; GZIP response if client can handle it
@@ -103,7 +117,7 @@
   (mdb/setup-db! :auto-migrate (config/config-bool :mb-db-automigrate))
   (init-status/set-progress! 0.5)
 
-
+  ;; TODO romartin:
   (let [new-install? (not (db/exists? User))]
     (if new-install?
       (when (public-settings/init-admin-user)
@@ -146,6 +160,8 @@
     ;; start the metabot thread
     (metabot/start-metabot!))
 
+  (set-locale (setting/get :site-locale))
+
   (init-status/set-complete!)
   (log/info "Metabase Initialization COMPLETE"))
 
@@ -164,9 +180,7 @@
                                                     :keystore       (config/config-str :mb-jetty-ssl-keystore)
                                                     :key-password   (config/config-str :mb-jetty-ssl-keystore-password)
                                                     :truststore     (config/config-str :mb-jetty-ssl-truststore)
-                                                    :trust-password (config/config-str :mb-jetty-ssl-truststore-password)
-                                                    :client-auth    (keyword (config/config-str :mb-jetty-ssl-client-auth))})
-
+                                                    :trust-password (config/config-str :mb-jetty-ssl-truststore-password)})
           jetty-config     (cond-> (m/filter-vals identity {:port          (config/config-int :mb-jetty-port)
                                                             :host          (config/config-str :mb-jetty-host)
                                                             :max-threads   (config/config-int :mb-jetty-maxthreads)
@@ -176,7 +190,7 @@
                              (config/config-str :mb-jetty-daemon) (assoc :daemon? (config/config-bool :mb-jetty-daemon))
                              (config/config-str :mb-jetty-ssl)    (-> (assoc :ssl? true)
                                                                       (merge jetty-ssl-config)))]
-       (log/info "Launching Embedded Jetty Webserver with config:\n" (with-out-str (pprint/pprint (m/filter-keys #(not (re-matches #".*password.*" (str %)))
+      (log/info "Launching Embedded Jetty Webserver with config:\n" (with-out-str (pprint/pprint (m/filter-keys #(not (re-matches #".*password.*" (str %)))
                                                                                                                 jetty-config))))
       ;; NOTE: we always start jetty w/ join=false so we can start the server first then do init in the background
       (->> (ring-jetty/run-jetty app (assoc jetty-config :join? false))
@@ -230,6 +244,12 @@
   ;; override env var that would normally make Jetty block forever
   (intern 'environ.core 'env (assoc environ.core/env :mb-jetty-join "false"))
   (u/profile "start-normally" (start-normally)))
+
+(defn ^:command reset-password
+  "Reset the password for a user with EMAIL-ADDRESS."
+  [email-address]
+  (require 'metabase.cmd.reset-password)
+  ((resolve 'metabase.cmd.reset-password/reset-password!) email-address))
 
 (defn ^:command help
   "Show this help message listing valid Metabase commands."

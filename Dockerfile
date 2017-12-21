@@ -47,10 +47,8 @@ RUN apk add --update wget && \
   mv "apache-maven-$MAVEN_VERSION" "$M2_HOME" && \
   ln -s "$M2_HOME/bin/mvn" /usr/bin/mvn
 
-RUN mvn install:install-file -Dfile=/app/source/bin/lib/stratio-crossdata-mesosphere-jdbc4-1.11.0-SNAPSHOT.jar -DgroupId=com.stratio.jdbc -DartifactId=stratio-crossdata-mesosphere-jdbc4 -Dversion=1.11.0-SNAPSHOT -Dpackaging=jar
-RUN mvn install:install-file -Dfile=/app/source/bin/lib/stratio-crossdata-jdbc4-2.1.0-SNAPSHOT.jar -DgroupId=com.stratio.crossdata -DartifactId=stratio-crossdata-jdbc4 -Dversion=2.1.0-SNAPSHOT -Dpackaging=jar
 RUN mvn install:install-file -Dfile=/app/source/bin/lib/local-query-execution-factory-0.2.jar -DgroupId=com.stratio.metabase -DartifactId=local-query-execution-factory -Dversion=0.2 -Dpackaging=jar
-RUN mvn install:install-file -Dfile=/app/source/bin/lib/stratio-crossdata-jdbc4-2.6.0.jar -DgroupId=com.stratio.crossdata -DartifactId=stratio-crossdata-jdbc4 -Dversion=2.6.0 -Dpackaging=jar
+RUN mvn install:install-file -Dfile=/app/source/bin/lib/stratio-crossdata-jdbc4-2.8.0.jar -DgroupId=com.stratio.crossdata -DartifactId=stratio-crossdata-jdbc4 -Dversion=2.8.0 -Dpackaging=jar
 # build the app
 WORKDIR /app/source
 

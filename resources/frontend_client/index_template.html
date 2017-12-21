@@ -11,14 +11,41 @@
 
         <title>Metabase</title>
 
+        <base href={{{base_href}}} />
+
         <script type="text/javascript">
-            window.MetabaseBootstrap = {{{bootstrap_json}}};
+            (function() {
+                window.MetabaseBootstrap = {{{bootstrap_json}}};
+                window.MetabaseLocalization = {{{localization_json}}};
+
+                var configuredRoot = {{{base_href}}};
+                var actualRoot = "/";
+
+                // Add trailing slashes
+                var backendPathname = {{{uri}}}.replace(/\/*$/, "/");
+                // e.x. "/questions/"
+                var frontendPathname = window.location.pathname.replace(/\/*$/, "/");
+                // e.x. "/metabase/questions/"
+                if (backendPathname === frontendPathname.slice(-backendPathname.length)) {
+                    // Remove the backend pathname from the end of the frontend pathname
+                    actualRoot = frontendPathname.slice(0, -backendPathname.length) + "/";
+                    // e.x. "/metabase/"
+                }
+
+                if (actualRoot !== configuredRoot) {
+                    console.warn("Warning: the Metabase site URL basename \"" + configuredRoot + "\" does not match the actual basename \"" + actualRoot + "\".");
+                    console.warn("You probably want to update the Site URL setting to \"" + window.location.origin + actualRoot + "\"");
+                    document.getElementsByTagName("base")[0].href = actualRoot;
+                }
+
+                window.MetabaseRoot = actualRoot;
+            })();
         </script>
     </head>
 
     <body>
 
-    <script type="text/javascript">
+        <script type="text/javascript">
 
             function setCookie(name, value, expires, path, secure) {
               var today = new Date();
@@ -44,7 +71,7 @@
               };
               xhttp.open("POST", url, true);
               xhttp.setRequestHeader("Content-Type", "application/json");
-              xhttp.send(JSON.stringify({email:"aa@gmail.com", password:"bbbbb"}));
+              xhttp.send(JSON.stringify({username:"aa@gmail.com", password:"bbbbb"}));
             }
 
 
@@ -91,10 +118,9 @@
             var session = getCookie('metabase.SESSION_ID');
 
             if (session.length==0){
-                request('/api/session', myFunction);
+                request('api/session', myFunction);
             }
         </script>
-
 
         <div id="root"></div>
 
@@ -110,7 +136,9 @@
                     document.body.appendChild(script);
                 }
                 loadScript('https://ajax.googleapis.com/ajax/libs/webfont/1.4.7/webfont.js', function () {
-                    WebFont.load({ google: { families: ["Lato:n3,n4,n9"] } });
+                    WebFont.load({ google: {
+                        families: ["Lato:300,400,700,900"] }
+                    });
                 });
                 var googleAuthClientID = window.MetabaseBootstrap.google_auth_client_id;
                 if (googleAuthClientID) {
@@ -134,7 +162,5 @@
 
             ga('create', ga_code, 'auto');
         </script>
-
-
     </body>
 </html>

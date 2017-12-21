@@ -5,16 +5,18 @@ import { push } from "react-router-redux";
 
 import MetabaseAnalytics from "metabase/lib/analytics";
 import { loadTableAndForeignKeys } from "metabase/lib/table";
-import { isFK } from "metabase/lib/types";
 
 import { MetabaseApi, SegmentApi, MetricApi, RevisionsApi } from "metabase/services";
+
+import { getEditingDatabase } from "./selectors";
 
 function loadDatabaseMetadata(databaseId) {
     return MetabaseApi.db_metadata({ 'dbId': databaseId });
 }
 
 // initializeMetadata
-export const initializeMetadata = createThunkAction("INITIALIZE_METADATA", function(databaseId, tableId) {
+export const INITIALIZE_METADATA = "metabase/admin/datamodel/INITIALIZE_METADATA";
+export const initializeMetadata = createThunkAction(INITIALIZE_METADATA, function(databaseId, tableId) {
     return async function(dispatch, getState) {
         let databases, database;
         try {
@@ -43,7 +45,8 @@ export const initializeMetadata = createThunkAction("INITIALIZE_METADATA", funct
 });
 
 // fetchDatabaseIdfields
-export const fetchDatabaseIdfields = createThunkAction("FETCH_IDFIELDS", function(databaseId) {
+export const FETCH_IDFIELDS = "metabase/admin/datamodel/FETCH_IDFIELDS";
+export const fetchDatabaseIdfields = createThunkAction(FETCH_IDFIELDS, function(databaseId) {
     return async function(dispatch, getState) {
         try {
             let idfields = await MetabaseApi.db_idfields({ 'dbId': databaseId });
@@ -58,7 +61,8 @@ export const fetchDatabaseIdfields = createThunkAction("FETCH_IDFIELDS", functio
 });
 
 // selectDatabase
-export const selectDatabase = createThunkAction("SELECT_DATABASE", function(db) {
+export const SELECT_DATABASE = "metabase/admin/datamodel/SELECT_DATABASE";
+export const selectDatabase = createThunkAction(SELECT_DATABASE, function(db) {
     return async function(dispatch, getState) {
         try {
             let database = await loadDatabaseMetadata(db.id);
@@ -76,7 +80,8 @@ export const selectDatabase = createThunkAction("SELECT_DATABASE", function(db) 
 });
 
 // selectTable
-export const selectTable = createThunkAction("SELECT_TABLE", function(table) {
+export const SELECT_TABLE = "metabase/admin/datamodel/SELECT_TABLE";
+export const selectTable = createThunkAction(SELECT_TABLE, function(table) {
     return function(dispatch, getState) {
         // we also want to update our url to match our new state
         dispatch(push('/admin/datamodel/database/'+table.db_id+'/table/'+table.id));
@@ -86,7 +91,8 @@ export const selectTable = createThunkAction("SELECT_TABLE", function(table) {
 });
 
 // updateTable
-export const updateTable = createThunkAction("UPDATE_TABLE", function(table) {
+export const UPDATE_TABLE = "metabase/admin/datamodel/UPDATE_TABLE";
+export const updateTable = createThunkAction(UPDATE_TABLE, function(table) {
     return async function(dispatch, getState) {
         try {
             // make sure we don't send all the computed metadata
@@ -109,14 +115,15 @@ export const updateTable = createThunkAction("UPDATE_TABLE", function(table) {
 });
 
 // updateField
-export const updateField = createThunkAction("UPDATE_FIELD", function(field) {
+export const UPDATE_FIELD = "metabase/admin/datamodel/UPDATE_FIELD";
+export const updateField = createThunkAction(UPDATE_FIELD, function(field) {
     return async function(dispatch, getState) {
-        const { datamodel: { editingDatabase } } = getState();
+        const editingDatabase = getEditingDatabase(getState());
 
         try {
             // make sure we don't send all the computed metadata
             let slimField = { ...field };
-            slimField = _.omit(slimField, "operators_lookup", "valid_operators", "values");
+            slimField = _.omit(slimField, "operators_lookup", "operators", "values");
 
             // update the field
             let updatedField = await MetabaseApi.field_update(slimField);
@@ -137,39 +144,11 @@ export const updateField = createThunkAction("UPDATE_FIELD", function(field) {
     };
 });
 
-// updateFieldSpecialType
-export const updateFieldSpecialType = createThunkAction("UPDATE_FIELD_SPECIAL_TYPE", function(field) {
-    return function(dispatch, getState) {
-
-        // If we are changing the field from a FK to something else, we should delete any FKs present
-        if (field.target && field.target.id != null && isFK(field.special_type)) {
-            // we have something that used to be an FK and is now not an FK
-            // clean up after ourselves
-            field.target = null;
-            field.fk_target_field_id = null;
-        }
-
-        // save the field
-        dispatch(updateField(field));
-
-        MetabaseAnalytics.trackEvent("Data Model", "Update Field Special-Type", field.special_type);
-    };
-});
-
-// updateFieldTarget
-export const updateFieldTarget = createThunkAction("UPDATE_FIELD_TARGET", function(field) {
-    return function(dispatch, getState) {
-        // This function notes a change in the target of the target of a foreign key
-        dispatch(updateField(field));
-
-        MetabaseAnalytics.trackEvent("Data Model", "Update Field Target");
-    };
-});
-
 // retireSegment
-export const onRetireSegment = createThunkAction("RETIRE_SEGMENT", function(segment) {
+export const RETIRE_SEGMENT = "metabase/admin/datamodel/RETIRE_SEGMENT";
+export const onRetireSegment = createThunkAction(RETIRE_SEGMENT, function(segment) {
     return async function(dispatch, getState) {
-        const { datamodel: { editingDatabase } } = getState();
+        const editingDatabase = getEditingDatabase(getState());
 
         await SegmentApi.delete(segment);
         MetabaseAnalytics.trackEvent("Data Model", "Retire Segment");
@@ -179,9 +158,10 @@ export const onRetireSegment = createThunkAction("RETIRE_SEGMENT", function(segm
 });
 
 // retireMetric
-export const onRetireMetric = createThunkAction("RETIRE_METRIC", function(metric) {
+export const RETIRE_METRIC = "metabase/admin/datamodel/RETIRE_METRIC";
+export const onRetireMetric = createThunkAction(RETIRE_METRIC, function(metric) {
     return async function(dispatch, getState) {
-        const { datamodel: { editingDatabase } } = getState();
+        const editingDatabase = getEditingDatabase(getState());
 
         await MetricApi.delete(metric);
         MetabaseAnalytics.trackEvent("Data Model", "Retire Metric");
@@ -193,10 +173,10 @@ export const onRetireMetric = createThunkAction("RETIRE_METRIC", function(metric
 
 // SEGMENTS
 
-export const GET_SEGMENT = "GET_SEGMENT";
-export const CREATE_SEGMENT = "CREATE_SEGMENT";
-export const UPDATE_SEGMENT = "UPDATE_SEGMENT";
-export const DELETE_SEGMENT = "DELETE_SEGMENT";
+export const GET_SEGMENT = "metabase/admin/datamodel/GET_SEGMENT";
+export const CREATE_SEGMENT = "metabase/admin/datamodel/CREATE_SEGMENT";
+export const UPDATE_SEGMENT = "metabase/admin/datamodel/UPDATE_SEGMENT";
+export const DELETE_SEGMENT = "metabase/admin/datamodel/DELETE_SEGMENT";
 
 export const getSegment    = createAction(GET_SEGMENT, SegmentApi.get);
 export const createSegment = createAction(CREATE_SEGMENT, SegmentApi.create);
@@ -205,10 +185,10 @@ export const deleteSegment = createAction(DELETE_SEGMENT, SegmentApi.delete);
 
 // METRICS
 
-export const GET_METRIC = "GET_METRIC";
-export const CREATE_METRIC = "CREATE_METRIC";
-export const UPDATE_METRIC = "UPDATE_METRIC";
-export const DELETE_METRIC = "DELETE_METRIC";
+export const GET_METRIC = "metabase/admin/datamodel/GET_METRIC";
+export const CREATE_METRIC = "metabase/admin/datamodel/CREATE_METRIC";
+export const UPDATE_METRIC = "metabase/admin/datamodel/UPDATE_METRIC";
+export const DELETE_METRIC = "metabase/admin/datamodel/DELETE_METRIC";
 
 export const getMetric    = createAction(GET_METRIC, MetricApi.get);
 export const createMetric = createAction(CREATE_METRIC, MetricApi.create);
@@ -217,8 +197,8 @@ export const deleteMetric = createAction(DELETE_METRIC, MetricApi.delete);
 
 // SEGMENT DETAIL
 
-export const LOAD_TABLE_METADATA = "LOAD_TABLE_METADATA";
-export const UPDATE_PREVIEW_SUMMARY = "UPDATE_PREVIEW_SUMMARY";
+export const LOAD_TABLE_METADATA = "metabase/admin/datamodel/LOAD_TABLE_METADATA";
+export const UPDATE_PREVIEW_SUMMARY = "metabase/admin/datamodel/UPDATE_PREVIEW_SUMMARY";
 
 export const loadTableMetadata = createAction(LOAD_TABLE_METADATA, loadTableAndForeignKeys);
 export const updatePreviewSummary = createAction(UPDATE_PREVIEW_SUMMARY, async (query) => {
@@ -228,7 +208,7 @@ export const updatePreviewSummary = createAction(UPDATE_PREVIEW_SUMMARY, async (
 
 // REVISION HISTORY
 
-export const FETCH_REVISIONS = "FETCH_REVISIONS";
+export const FETCH_REVISIONS = "metabase/admin/datamodel/FETCH_REVISIONS";
 
 export const fetchRevisions = createThunkAction(FETCH_REVISIONS, ({ entity, id }) =>
     async (dispatch, getState) => {
@@ -250,23 +230,23 @@ export const fetchRevisions = createThunkAction(FETCH_REVISIONS, ({ entity, id }
 // reducers
 
 const databases = handleActions({
-    ["INITIALIZE_METADATA"]: { next: (state, { payload }) => payload.databases }
+    [INITIALIZE_METADATA]: { next: (state, { payload }) => payload.databases }
 }, []);
 
 const idfields = handleActions({
-    ["FETCH_IDFIELDS"]: { next: (state, { payload }) => payload ? payload : state }
+    [FETCH_IDFIELDS]: { next: (state, { payload }) => payload ? payload : state }
 }, []);
 
 const editingDatabase = handleActions({
-    ["INITIALIZE_METADATA"]: { next: (state, { payload }) => payload.database },
-    ["SELECT_DATABASE"]: { next: (state, { payload }) => payload ? payload : state },
-    ["RETIRE_SEGMENT"]: { next: (state, { payload }) => payload },
-    ["RETIRE_METRIC"]: { next: (state, { payload }) => payload }
+    [INITIALIZE_METADATA]: { next: (state, { payload }) => payload.database },
+    [SELECT_DATABASE]: { next: (state, { payload }) => payload ? payload : state },
+    [RETIRE_SEGMENT]: { next: (state, { payload }) => payload },
+    [RETIRE_METRIC]: { next: (state, { payload }) => payload }
 }, null);
 
 const editingTable = handleActions({
-    ["INITIALIZE_METADATA"]: { next: (state, { payload }) => payload.tableId || null },
-    ["SELECT_TABLE"]: { next: (state, { payload }) => payload }
+    [INITIALIZE_METADATA]: { next: (state, { payload }) => payload.tableId || null },
+    [SELECT_TABLE]: { next: (state, { payload }) => payload }
 }, null);
 
 const segments = handleActions({
