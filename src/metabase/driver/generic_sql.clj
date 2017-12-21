@@ -1,5 +1,5 @@
 (ns metabase.driver.generic-sql
-  "Shared code for drivers for SQL databases using their respective JDBC drivers under the hood."
+  "Shared code for drivers for SQL databases using their respective clearJDBC drivers under the hood."
   (:require [clojure
              [set :as set]
              [string :as str]]
